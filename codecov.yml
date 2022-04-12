@@ -1,0 +1,20 @@
+ignore:
+  - "bluesky_exporter/_version.py"
+  - "setup.py"
+  - "versioneer.py"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        paths:
+          - "bluesky_exporter"
+        informational: true
+    patch:
+      default:
+        target: auto
+        paths:
+          - "bluesky_exporter"
+        informational: true
+
