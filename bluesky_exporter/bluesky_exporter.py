@@ -119,6 +119,7 @@ class ExporterWindow(QMainWindow):
         super(ExporterWindow, self).__init__(*args, **kwargs)
         self.exporter = Exporter(broker)
         self.setCentralWidget(self.exporter)
+        self.setWindowTitle('Bluesky Exporter')
 
 
 def main():
