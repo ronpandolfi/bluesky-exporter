@@ -17,6 +17,8 @@ from qtmodern import styles
 from xicam.gui.bluesky.databroker_catalog_plugin import SearchingCatalogController
 from xicam.gui.widgets.metadataview import MetadataWidget
 
+from .converters import Converter
+
 __all__ = ['main']
 
 # Consistently styling the pyqtgraph parametertrees across styles with reasonable colors
@@ -28,24 +30,8 @@ QTreeView::item:has-children {
 """
 
 
-def slugify(value, allow_unicode=False):
-    """
-    Taken from https://github.com/django/django/blob/master/django/utils/text.py
-    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
-    dashes to single dashes. Remove characters that aren't alphanumerics,
-    underscores, or hyphens. Convert to lowercase. Also strip leading and
-    trailing whitespace, dashes, and underscores.
-    """
-    value = str(value)
-    if allow_unicode:
-        value = unicodedata.normalize('NFKC', value)
-    else:
-        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
-    value = re.sub(r'[^\w\s-]', '', value.lower())
-    return re.sub(r'[-\s]+', '-', value).strip('-_')
-
-
 class ExportSettings(QGroupBox):
+
     def __init__(self, *args, **kwargs):
         super(ExportSettings, self).__init__('Export Settings', *args, **kwargs)
         self.setLayout(form_layout := QFormLayout())
@@ -55,17 +41,17 @@ class ExportSettings(QGroupBox):
         self.export_directory_button.setText('...')
         self.munge_filenames = QCheckBox('Use sample name as filename')
         self.munge_filenames.setChecked(True)
-        self.convert = QCheckBox('Convert file format')
-        self.convert.setChecked(True)
-        self.new_format = QComboBox()
+        self.converter = QComboBox()
+        for name, converter in Converter.converter_classes.items():
+            self.converter.addItem(name, converter)
 
         export_directory_layout = QHBoxLayout()
         export_directory_layout.addWidget(self.export_directory_path)
         export_directory_layout.addWidget(self.export_directory_button)
 
         form_layout.addRow('Export Directory:', export_directory_layout)
+        form_layout.addRow('Data conversion:', self.converter)
         form_layout.addWidget(self.munge_filenames)
-        # form_layout.addWidget(self.convert)
 
         self.export_directory_button.clicked.connect(self.choose_directory)
 
@@ -98,20 +84,25 @@ class Exporter(QWidget):
     def export(self, catalog):
         export_dir = self.export_settings_widget.export_directory_path.text()
 
+        converter = self.export_settings_widget.converter.currentData()(export_dir)
+
         if not export_dir:
             QMessageBox.information(self, 'Cannot export', 'Select an export directory.')
             return
 
-        resource_counter = itertools.count()
+        for converted_path in converter.convert_run(catalog):
+            print(converted_path)
 
-        for name, doc in catalog.canonical(fill='no'):
-            if name == 'start':
-                sample_name = slugify(doc['sample_name'])
-
-            elif name == 'resource':
-                src_path = Path(doc['root']) / Path(doc['resource_path'])
-                dest_path = (Path(export_dir) / Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(doc['resource_path']).suffix)
-                shutil.copy2(src_path, dest_path)
+        # resource_counter = itertools.count()
+        #
+        # for name, doc in catalog.canonical(fill='no'):
+        #     if name == 'start':
+        #         sample_name = slugify(doc['sample_name'])
+        #
+        #     elif name == 'resource':
+        #         src_path = Path(doc['root']) / Path(doc['resource_path'])
+        #         dest_path = (Path(export_dir) / Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(doc['resource_path']).suffix)
+        #         shutil.copy2(src_path, dest_path)
 
 
 class ExporterWindow(QMainWindow):
