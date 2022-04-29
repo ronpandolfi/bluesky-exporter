@@ -84,11 +84,30 @@ class FitsConverter(Converter):
                 yield
 
 
+class CXIConverter(Converter):
+    name = 'Cosmic CXI'
+
+    def convert_run(self, run: BlueskyRun):
+        from suitcase.cxi import export
+
+        # get the documents generator from the run object
+        docs = run.documents(fill='yes')
+
+        # run cxi exporter on the document stream
+        artifacts = export(docs, self.export_dir)
+
+        # yield out all artifact paths (not actually used yet, WIP)
+        yield from sum(list(artifacts.values()))
+
+
 class Intake(Converter):
     name = 'Intake'
+
     def convert_run(self, run: BlueskyRun):
-        dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{stream_name}_{field_name}")).with_suffix('.tif')
+        sample_name = self.get_sample_name(run)
+        dest_path = (Path(self.export_dir) / Path(f"{sample_name}")).with_suffix('.yaml')
         run.export(dest_path)
+        yield
 
 
 def slugify(value, allow_unicode=False):
