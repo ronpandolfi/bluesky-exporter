@@ -194,51 +194,54 @@ class CXIConverter(Converter):
 
         # Create the data file
         path = str(Path(self.export_dir) / Path(f"{run.metadata['start']['scan_id']}_{uid}").with_suffix('.cxi'))
-        f = h5py.File(path, 'w')
-        f.create_dataset('cxi_version', data=150)
-        f.create_dataset('number_of_entries', data=1)
 
-        # Populate the major metadata fields
-        entry_1 = f.create_group('entry_1')
-        entry_1['start_time'] = np.string_(start_time)
-        try:
-            entry_1['end_time'] = np.string_(end_time)
-        except UnboundLocalError:
-            pass
-        entry_1.create_dataset('run_id', data=uid)
+        # Note from Abe: I changed this because not closing the files
+        # was causing it to leak memory over time
+        with h5py.File(path, 'w') as f:
+            f.create_dataset('cxi_version', data=150)
+            f.create_dataset('number_of_entries', data=1)
 
-        # Populate the sample and geometry
-        sample_1 = entry_1.create_group('sample_1')
-        sample_1['name'] = np.string_(run.metadata['start']['sample_name'])
-        geometry_1 = sample_1.create_group('geometry_1')
-        geometry_1.create_dataset('translation', data=translations)  # in m
-        # geometry_1.create_dataset('surface_normal', data=surface_normal)  # TODO: revisit for sample rotation mode
+            # Populate the major metadata fields
+            entry_1 = f.create_group('entry_1')
+            entry_1['start_time'] = np.string_(start_time)
+            try:
+                entry_1['end_time'] = np.string_(end_time)
+            except UnboundLocalError:
+                pass
+            entry_1.create_dataset('run_id', data=uid)
 
-        # Populate the detector and source information
-        instrument_1 = entry_1.create_group('instrument_1')
-        instrument_1['name'] = np.string_('COSMIC-Scattering')
+            # Populate the sample and geometry
+            sample_1 = entry_1.create_group('sample_1')
+            sample_1['name'] = np.string_(run.metadata['start']['sample_name'])
+            geometry_1 = sample_1.create_group('geometry_1')
+            geometry_1.create_dataset('translation', data=translations)  # in m
+            # geometry_1.create_dataset('surface_normal', data=surface_normal)  # TODO: revisit for sample rotation mode
 
-        detector_1 = instrument_1.create_group('detector_1')
-        detector_1.create_dataset('corner_position', data=corner_position)
-        detector_1.create_dataset('delta', data=delta)
-        detector_1.create_dataset('gamma', data=gamma)
-        detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
-        detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
-        detector_1.create_dataset('basis_vectors', data=basis_vectors)
-        detector_1.create_dataset('distance', data=distance)
-        detector_1.create_dataset('mask', data=mask)
-        detector_1['translation'] = h5py.SoftLink('/entry_1/sample_1/geometry_1/translation')
+            # Populate the detector and source information
+            instrument_1 = entry_1.create_group('instrument_1')
+            instrument_1['name'] = np.string_('COSMIC-Scattering')
 
-        source_1 = instrument_1.create_group('source_1')
-        source_1['name'] = np.string_('ALS')
-        source_1.create_dataset('energy', data=energy)  # in J
-        source_1.create_dataset('wavelength', data=wavelength)  # in m
+            detector_1 = instrument_1.create_group('detector_1')
+            detector_1.create_dataset('corner_position', data=corner_position)
+            detector_1.create_dataset('delta', data=delta)
+            detector_1.create_dataset('gamma', data=gamma)
+            detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
+            detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
+            detector_1.create_dataset('basis_vectors', data=basis_vectors)
+            detector_1.create_dataset('distance', data=distance)
+            detector_1.create_dataset('mask', data=mask)
+            detector_1['translation'] = h5py.SoftLink('/entry_1/sample_1/geometry_1/translation')
 
-        # And finally, we create the data group
-        data_1 = entry_1.create_group('data_1')
-        data_1['translation'] = h5py.SoftLink('/entry_1/sample_1/geometry_1/translation')
+            source_1 = instrument_1.create_group('source_1')
+            source_1['name'] = np.string_('ALS')
+            source_1.create_dataset('energy', data=energy)  # in J
+            source_1.create_dataset('wavelength', data=wavelength)  # in m
 
-        detector_1.create_dataset('data', data=treated_images)
+            # And finally, we create the data group
+            data_1 = entry_1.create_group('data_1')
+            data_1['translation'] = h5py.SoftLink('/entry_1/sample_1/geometry_1/translation')
+
+            detector_1.create_dataset('data', data=treated_images)
 
 
         # yield out all artifact paths (not actually used yet, WIP)
