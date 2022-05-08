@@ -112,8 +112,6 @@ class CXIConverter(Converter):
         except KeyError:
             warnings.warn('No stop document in run. Likely a failed/aborted acquisition.')
 
-
-
         # Extract the overall metadata
         # This gets the time into the correct format, ISO 8601. Perhaps there is a native way to
         # do this with the Timestamp object but I don't know where to find the docs for it.
@@ -145,22 +143,6 @@ class CXIConverter(Converter):
 
         # Now package the translations into a format digestible by CXI
         translations = np.stack((x_locs, y_locs, np.zeros(x_locs.shape))).transpose()
-
-        images = primary_stream['fastccd_image']
-
-        # squeeze extra dims
-        if len(images.dims) > 3:
-            images = np.squeeze(images)
-
-        # subtract darks
-        if dark_stream is not None:
-            flats = np.ones_like(images[0])
-            images = correct(images, flats, dark_stream['fastccd_image'])
-
-        # remove overscan
-        treated_images = np.delete(images, slice(966, 1084), 2)
-
-        # TODO: rotate?
 
         mask_run = db['f2d9e']
         mask = np.squeeze(np.asarray(mask_run.primary.to_dask()['fastccd_image']) == 8191)
@@ -241,8 +223,24 @@ class CXIConverter(Converter):
             data_1 = entry_1.create_group('data_1')
             data_1['translation'] = h5py.SoftLink('/entry_1/sample_1/geometry_1/translation')
 
-            detector_1.create_dataset('data', data=treated_images)
+            images = primary_stream['fastccd_image']
+            overscan_slice = slice(966, 1084)
+            det1 = detector_1.create_dataset('data', shape=np.delete(images, overscan_slice, -1).shape)
 
+            # squeeze extra dims
+            if len(images.dims) > 3:
+                images = np.squeeze(images)
+
+            flats = np.ones_like(images[0])
+            for i, frame in enumerate(images):
+                if dark_stream is not None:
+                    # subtract darks
+                    frame = correct(np.expand_dims(frame, 0), flats, dark_stream['fastccd_image'])[0]
+                    # remove overscan
+                    frame = np.delete(frame, overscan_slice, -1)
+                    # TODO: rotate?
+                    # write data
+                det1[i] = np.asarray(frame)
 
         # yield out all artifact paths (not actually used yet, WIP)
         yield path
