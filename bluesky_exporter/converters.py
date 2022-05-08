@@ -225,7 +225,15 @@ class CXIConverter(Converter):
 
             images = primary_stream['fastccd_image']
             overscan_slice = slice(966, 1084)
-            det1 = detector_1.create_dataset('data', shape=np.delete(images, overscan_slice, -1).shape)
+
+            # decide how big to make dataset for images
+            if dark_stream is not None:
+                data_shape = np.delete(images, overscan_slice, -1).shape
+            else:
+                data_shape = images.shape
+
+            # initialize dataset
+            det1 = detector_1.create_dataset('data', shape=data_shape)
 
             # squeeze extra dims
             if len(images.dims) > 3:
