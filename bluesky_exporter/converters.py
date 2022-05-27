@@ -68,6 +68,7 @@ class NoOpConverter(Converter):
                 for src_path in run.get_file_list(doc):
                     dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(src_path).suffix)
                     shutil.copy2(src_path, dest_path)
+        yield
 
 
 class TiffConverter(Converter):
