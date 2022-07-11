@@ -3,14 +3,21 @@ import re
 import shutil
 import tempfile
 import unicodedata
+import warnings
+from datetime import datetime
 from pathlib import Path
 
+import h5py
+import numpy as np
 from astropy.io import fits
 from xarray import Dataset
 from databroker.core import BlueskyRun
 from astropy.table import Table
 import tifffile
 from xicam.core.data.bluesky_utils import streams_from_run
+from pyqtgraph.parametertree import parameterTypes as ptypes
+
+from bluesky_exporter.dialogs import ParameterDialog
 
 tmp_dir = tempfile.tempdir
 
@@ -98,6 +105,121 @@ class CXIConverter(Converter):
 
         # yield out all artifact paths (not actually used yet, WIP)
         yield from sum(list(artifacts.values()))
+
+
+class NxsasConverter(Converter):
+    name = 'Nexus NXsas (Cosmic-Scattering)'
+
+    def convert_run(self, run: BlueskyRun):
+        from xicam.SAXS.operations.correction import correct
+
+        # statics for fastccd
+        distance = 0.284
+        x_pixel_size = y_pixel_size = 30e-6
+
+        uid = run.metadata['start']['uid']
+
+        # Create the data file
+        path = str(Path(self.export_dir) / Path(f"{run.metadata['start']['sample_name']}_{uid}").with_suffix('.h5'))
+
+        primary_stream = run.primary.to_dask()
+        labview_stream = run.labview.to_dask()
+
+        with h5py.File(path, 'w') as f:
+
+            raw = primary_stream['fastccd_image']
+            dark = np.average(np.squeeze(run.dark.to_dask()['fastccd_image']), axis=0)
+            flats = np.ones(raw.shape[-2:])
+
+            # when ndim > 3, squeeze extra dims
+            dims_to_squeeze = len(raw.dims)-3
+            if dims_to_squeeze > 0:
+                for i in range(len(raw.dims)):
+                    if raw.shape[i] == 1:
+                        raw = np.squeeze(raw, axis=i)
+                        dims_to_squeeze -= 1
+                        if dims_to_squeeze == 0:
+                            break
+
+            dialog = ParameterDialog(
+                [ptypes.SimpleParameter(name='X Min', value=0, type='int', suffix='px'),
+                 ptypes.SimpleParameter(name='X Max', value=flats.shape[-1], type='int', suffix='px'),
+                 ptypes.SimpleParameter(name='Y Min', value=0, type='int', suffix='px'),
+                 ptypes.SimpleParameter(name='Y Max', value=flats.shape[-2], type='int', suffix='px'),
+                 ],
+                'Enter the export ROI ranges (optional).')
+
+            if not dialog.exec_():
+                raise InterruptedError('Cancelled export from dialog.')
+
+            x_min = dialog.get_parameters()['X Min']
+            y_min = dialog.get_parameters()['Y Min']
+            x_max = dialog.get_parameters()['X Max']
+            y_max = dialog.get_parameters()['Y Max']
+
+            dark = dark[y_min:y_max+1, x_min:x_max+1]
+            flats = flats[y_min:y_max+1, x_min:x_max+1]
+
+            start_time = run.metadata['start']['time']
+            end_time = None
+            try:
+                end_time = run.metadata['stop']['time']  # TODO: handle no stop doc
+            except KeyError:
+                warnings.warn('No stop document in run. Likely a failed/aborted acquisition.')
+
+            # Extract the overall metadata
+            # This gets the time into the correct format, ISO 8601. Perhaps there is a native way to
+            # do this with the Timestamp object but I don't know where to find the docs for it.
+            times = [start_time]
+            if end_time: times.append(end_time)
+            times = tuple(datetime.fromtimestamp(time) for time in times)
+            try:
+                start_time, end_time = tuple(time.strftime('%Y-%m-%dT%H:%M:%S.%f') for time in times)
+            except ValueError as e:
+                # If there was an error and no recorded end time
+                start_time, = tuple(time.strftime('%Y-%m-%dT%H:%M:%S.%f') for time in times)
+
+            energy = np.mean(labview_stream['mono_energy'].compute())
+            energy = energy * 1.60218e-19  # to J
+            wavelength = 1.9864459e-25 / energy
+
+            f.create_dataset('cxi_version', data=150)
+            f.create_dataset('number_of_entries', data=1)
+
+            # Populate the major metadata fields
+            entry_1 = f.create_group('entry_1')
+            entry_1['start_time'] = np.string_(start_time)
+            try:
+                entry_1['end_time'] = np.string_(end_time)
+            except UnboundLocalError:
+                pass
+            entry_1.create_dataset('run_id', data=uid)
+
+            # Populate the sample and geometry
+            sample_1 = entry_1.create_group('sample_1')
+            sample_1['name'] = np.string_(run.metadata['start']['sample_name'])
+            geometry_1 = sample_1.create_group('geometry_1')
+            # geometry_1.create_dataset('surface_normal', data=surface_normal)  # TODO: revisit for sample rotation mode
+
+            # Populate the detector and source information
+            instrument_1 = entry_1.create_group('instrument_1')
+            instrument_1['name'] = np.string_('COSMIC-Scattering')
+
+            detector_1 = instrument_1.create_group('detector_1')
+            detector_1.create_dataset('description', data='LBNL FastCCD')
+            detector_1.create_dataset('distance', data=distance)
+            detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
+            detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
+
+            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-y_min, x_max-x_min))
+
+            for i, raw_frame in enumerate(raw):
+                raw_frame = np.asarray(raw_frame[y_min:y_max+1, x_min:x_max+1])
+                corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+
+                det1[i] = corrected_image
+
+        yield path
 
 
 class Intake(Converter):
