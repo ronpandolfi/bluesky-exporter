@@ -142,10 +142,10 @@ class NxsasConverter(Converter):
                             break
 
             dialog = ParameterDialog(
-                [ptypes.SimpleParameter(name='X Min', value=0, type='int', suffix='px'),
-                 ptypes.SimpleParameter(name='X Max', value=flats.shape[-1], type='int', suffix='px'),
-                 ptypes.SimpleParameter(name='Y Min', value=0, type='int', suffix='px'),
-                 ptypes.SimpleParameter(name='Y Max', value=flats.shape[-2], type='int', suffix='px'),
+                [ptypes.SimpleParameter(name='X Min', value=0, type='int', limits=(0, flats.shape[-1])),
+                 ptypes.SimpleParameter(name='X Max', value=flats.shape[-1], type='int', limits=(0, flats.shape[-1])),
+                 ptypes.SimpleParameter(name='Y Min', value=0, type='int', limits=(0, flats.shape[-2])),
+                 ptypes.SimpleParameter(name='Y Max', value=flats.shape[-2], type='int', limits=(0, flats.shape[-1])),
                  ],
                 'Enter the export ROI ranges (optional).')
 
@@ -183,11 +183,8 @@ class NxsasConverter(Converter):
             energy = energy * 1.60218e-19  # to J
             wavelength = 1.9864459e-25 / energy
 
-            f.create_dataset('cxi_version', data=150)
-            f.create_dataset('number_of_entries', data=1)
-
             # Populate the major metadata fields
-            entry_1 = f.create_group('entry_1')
+            entry_1 = f.create_group('entry1')
             entry_1['start_time'] = np.string_(start_time)
             try:
                 entry_1['end_time'] = np.string_(end_time)
@@ -214,10 +211,15 @@ class NxsasConverter(Converter):
             det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-y_min, x_max-x_min))
 
             for i, raw_frame in enumerate(raw):
-                raw_frame = np.asarray(raw_frame[y_min:y_max+1, x_min:x_max+1])
+                raw_frame = np.asarray(raw_frame[y_min:y_max, x_min:x_max])
                 corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
 
                 det1[i] = corrected_image
+
+            # Add LabVIEW data
+            labview_group = instrument_1.create_group('labview_data')
+            for field in labview_stream:
+                labview_group.create_dataset(field, data=labview_stream[field].compute())
 
         yield path
 
