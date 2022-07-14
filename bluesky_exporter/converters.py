@@ -300,7 +300,8 @@ class NxsasConverter(Converter):
         uid = run.metadata['start']['uid']
 
         # Create the data file
-        path = str(Path(self.export_dir) / Path(f"{run.metadata['start']['sample_name']}_{uid}").with_suffix('.h5'))
+        path = Path(self.export_dir) / Path(f"{run.metadata['start']['sample_name']}_{uid}")
+        path = str(path.with_suffix(path.suffix+'.h5'))
 
         primary_stream = run.primary.to_dask()
         labview_stream = run.labview.to_dask()
