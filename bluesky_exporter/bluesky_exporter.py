@@ -1,11 +1,12 @@
 import itertools
 import shutil
-from collections import Counter
+import time
+from collections import Counter, deque
 from pathlib import Path
 import re
 import unicodedata
 
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QMessageBox, QProgressBar
 from qtpy.QtWidgets import QFormLayout, QLineEdit, QPushButton, QVBoxLayout, QToolButton, QFileDialog, QCheckBox, \
     QComboBox
 from qtpy.QtWidgets import QApplication, QSizePolicy
@@ -13,6 +14,7 @@ from qtpy.QtCore import Qt
 from databroker import Broker
 from qtpy.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QGroupBox
 from qtmodern import styles
+from xicam.core.threads import QThreadFutureIterator, invoke_in_main_thread
 
 from xicam.gui.bluesky.databroker_catalog_plugin import SearchingCatalogController
 from xicam.gui.widgets.metadataview import MetadataWidget
@@ -39,8 +41,8 @@ class ExportSettings(QGroupBox):
         self.export_directory_path = QLineEdit()
         self.export_directory_button = QToolButton()
         self.export_directory_button.setText('...')
-        self.munge_filenames = QCheckBox('Use sample name as filename')
-        self.munge_filenames.setChecked(True)
+        # self.munge_filenames = QCheckBox('Use sample name as filename')
+        # self.munge_filenames.setChecked(True)
         self.converter = QComboBox()
         for name, converter in Converter.converter_classes.items():
             self.converter.addItem(name, converter)
@@ -51,7 +53,7 @@ class ExportSettings(QGroupBox):
 
         form_layout.addRow('Export Directory:', export_directory_layout)
         form_layout.addRow('Data conversion:', self.converter)
-        form_layout.addWidget(self.munge_filenames)
+        # form_layout.addWidget(self.munge_filenames)
 
         self.export_directory_button.clicked.connect(self.choose_directory)
 
@@ -71,27 +73,81 @@ class Exporter(QWidget):
         self.export_settings_widget = ExportSettings()
         self.browser_widget = SearchingCatalogController(broker)
         self.metadata_widget = MetadataWidget()
+        self.catalog_progress_bar = QProgressBar()
+        self.export_progress_bar = QProgressBar()
+        self.catalog_progress_bar.setFormat('Processing catalog %v of %m...')
+        self.catalog_progress_bar.hide()
+        self.export_progress_bar.hide()
 
         vlayout.addWidget(self.export_settings_widget)
         vlayout.addWidget(self.browser_widget)
+        vlayout.addWidget(self.catalog_progress_bar)
+        vlayout.addWidget(self.export_progress_bar)
         hlayout.addWidget(self.metadata_widget)
 
-        self.browser_widget.sigOpen.connect(self.export)
+        self.browser_widget.sigOpen.connect(self.start_export)
         self.browser_widget.sigPreview.connect(self.metadata_widget.show_catalog)
 
         self.browser_widget.open_button.setText('Export')
 
-    def export(self, catalog):
+        self.export_thread = QThreadFutureIterator(self.export,
+                                                   yield_slot=self.show_progress,
+                                                   finished_slot=self.export_finished)
+        self.export_queue = deque()
+
+    def start_export(self, catalog):
+        # self.browser_widget.open_button.setEnabled(False)
+        self.export_queue.append(catalog)
+        if not self.export_thread.running:
+            self.export_thread.start()
+        # self.catalog_progress_bar.show()
+        self.export_progress_bar.show()
+        self.export_progress_bar.setValue(0)
+        self.export_progress_bar.setMaximum(0)
+        self.catalog_progress_bar.setValue(0)
+        self.catalog_progress_bar.setMaximum(0)
+        self.export_settings_widget.setDisabled(True)
+
+    def export_finished(self):
+        # self.browser_widget.open_button.setEnabled(True)
+        self.catalog_progress_bar.hide()
+        self.export_progress_bar.hide()
+        self.export_settings_widget.setEnabled(True)
+
+    def show_progress(self, value, max, catalog_value, catalog_max):
+        self.export_progress_bar.setMaximum(max)
+        self.export_progress_bar.setValue(value)
+        if catalog_max > 1:
+            self.catalog_progress_bar.show()
+            self.catalog_progress_bar.setValue(catalog_value)
+            self.catalog_progress_bar.setMaximum(catalog_max)
+
+    def export(self):
         export_dir = self.export_settings_widget.export_directory_path.text()
 
         converter = self.export_settings_widget.converter.currentData()(export_dir)
 
+        while not getattr(converter, 'ready', True):
+            time.sleep(.1)
+
         if not export_dir:
-            QMessageBox.information(self, 'Cannot export', 'Select an export directory.')
+            invoke_in_main_thread(QMessageBox.information, self, 'Cannot export', 'Select an export directory.')
             return
 
-        for converted_path in converter.convert_run(catalog):
-            print(converted_path)
+        queue_length = len(self.export_queue)
+        completed_counter = 0
+
+        while self.export_queue:
+            queue_length = max(queue_length, len(self.export_queue) + completed_counter)
+            catalog = self.export_queue.pop()
+
+            for y in converter.convert_run(catalog):
+                if isinstance(y, tuple):
+                    yield *y, completed_counter, queue_length
+                else:
+                    print(y)
+
+            completed_counter += 1
 
         # resource_counter = itertools.count()
         #

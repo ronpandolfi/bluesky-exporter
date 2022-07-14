@@ -6,6 +6,7 @@ import unicodedata
 import warnings
 from datetime import datetime
 from pathlib import Path
+import time
 
 import h5py
 import numpy as np
@@ -18,6 +19,8 @@ from pyqtgraph.parametertree import parameterTypes as ptypes
 
 from databroker import Broker
 from xicam.SAXS.operations.correction import correct
+from xicam.core.threads import invoke_in_main_thread, invoke_as_event
+
 from bluesky_exporter.dialogs import ParameterDialog
 
 db = Broker.named('local').v2
@@ -258,6 +261,35 @@ class CXIConverter(Converter):
 class NxsasConverter(Converter):
     name = 'Nexus NXsas (Cosmic-Scattering)'
 
+    def __init__(self, *args, **kwargs):
+        super(NxsasConverter, self).__init__(*args, **kwargs)
+
+        self.dialog = None
+        self.ready = False
+
+        def run_dialog():
+            self.dialog = ParameterDialog(
+                [ptypes.SimpleParameter(name='X Min', value=0, type='int'),
+                 ptypes.SimpleParameter(name='X Max', value=-1, type='int'),
+                 ptypes.SimpleParameter(name='Y Min', value=0, type='int'),
+                 ptypes.SimpleParameter(name='Y Max', value=-1, type='int'),
+                 ],
+                "Enter the export ROI ranges (optional). A max of -1 means 'end'.")
+            self.dialog.open()
+            self.dialog.accepted.connect(self._accepted)
+
+        invoke_as_event(run_dialog)
+
+    def _rejected(self):
+        raise InterruptedError('Cancelled export from dialog.')
+
+    def _accepted(self):
+        self.x_min = self.dialog.get_parameters()['X Min']
+        self.y_min = self.dialog.get_parameters()['Y Min']
+        self.x_max = self.dialog.get_parameters()['X Max']
+        self.y_max = self.dialog.get_parameters()['Y Max']
+        self.ready = True
+
     def convert_run(self, run: BlueskyRun):
         from xicam.SAXS.operations.correction import correct
 
@@ -289,24 +321,11 @@ class NxsasConverter(Converter):
                         if dims_to_squeeze == 0:
                             break
 
-            dialog = ParameterDialog(
-                [ptypes.SimpleParameter(name='X Min', value=0, type='int', limits=(0, flats.shape[-1])),
-                 ptypes.SimpleParameter(name='X Max', value=flats.shape[-1], type='int', limits=(0, flats.shape[-1])),
-                 ptypes.SimpleParameter(name='Y Min', value=0, type='int', limits=(0, flats.shape[-2])),
-                 ptypes.SimpleParameter(name='Y Max', value=flats.shape[-2], type='int', limits=(0, flats.shape[-1])),
-                 ],
-                'Enter the export ROI ranges (optional).')
+            x_max = raw.shape[-1] if self.x_max == -1 else self.x_max
+            y_max = raw.shape[-2] if self.y_max == -1 else self.y_max
 
-            if not dialog.exec_():
-                raise InterruptedError('Cancelled export from dialog.')
-
-            x_min = dialog.get_parameters()['X Min']
-            y_min = dialog.get_parameters()['Y Min']
-            x_max = dialog.get_parameters()['X Max']
-            y_max = dialog.get_parameters()['Y Max']
-
-            dark = dark[y_min:y_max+1, x_min:x_max+1]
-            flats = flats[y_min:y_max+1, x_min:x_max+1]
+            dark = dark[self.y_min:y_max+1, self.x_min:x_max+1]
+            flats = flats[self.y_min:y_max+1, self.x_min:x_max+1]
 
             start_time = run.metadata['start']['time']
             end_time = None
@@ -356,13 +375,14 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
             detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
 
-            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-y_min, x_max-x_min))
+            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-self.y_min, x_max-self.x_min))
 
             for i, raw_frame in enumerate(raw):
-                raw_frame = np.asarray(raw_frame[y_min:y_max, x_min:x_max])
+                raw_frame = np.asarray(raw_frame[self.y_min:y_max, self.x_min:x_max])
                 corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
 
                 det1[i] = corrected_image
+                yield i, len(raw)
 
             # Add LabVIEW data
             labview_group = instrument_1.create_group('labview_data')
