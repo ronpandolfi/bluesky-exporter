@@ -374,6 +374,9 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('distance', data=distance)
             detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
             detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
+            detector_1.create_dataset('count_time', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_time'])
+            detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_period'])
+            detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_num_exposures'])
 
             det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-self.y_min, x_max-self.x_min))
 
