@@ -1,6 +1,7 @@
 import itertools
 import re
 import shutil
+import subprocess
 import tempfile
 import unicodedata
 import warnings
@@ -106,6 +107,10 @@ class CXIConverter(Converter):
 
         self.dialog = None
         self.ready = False
+
+        if int(subprocess.check_output('ulimit -n', shell=True).decode()) <= 1024:
+            warnings.warn('The current value of ulimit is low. If you try to export very long runs, you may encounter '
+                          'errors. It is recommended to increase this value with "ulimit -n".')
 
         def run_dialog():
             self.dialog = ParameterDialog(
