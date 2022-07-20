@@ -125,6 +125,9 @@ class CXIConverter(Converter):
         raise InterruptedError('Cancelled export from dialog.')
 
     def _accepted(self):
+        parameter = self.dialog.get_parameters()
+        self.override_energy = parameter['Override Energy']
+        self.energy = parameter['Energy']
         self.ready = True
 
     def convert_run(self, run: BlueskyRun):
@@ -156,8 +159,8 @@ class CXIConverter(Converter):
 
         energy = np.mean(primary_stream['mono_energy'].compute())
 
-        if self.dialog.get_parameters()['Override Energy']:
-            energy = self.dialog.get_parameters()['Energy']
+        if self.override_energy:
+            energy = self.energy
 
         energy = energy * 1.60218e-19  # to J
         wavelength = 1.9864459e-25 / energy
