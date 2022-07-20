@@ -109,10 +109,13 @@ class CXIConverter(Converter):
 
         def run_dialog():
             self.dialog = ParameterDialog(
-                [ptypes.SimpleParameter(name='Override Energy', value=False, type='bool'),
-                 ptypes.SimpleParameter(name='Energy', value=0, type='float', suffix='eV', siPrefix=True),
+                [override_param := ptypes.SimpleParameter(name='Override Energy', value=False, type='bool'),
+                 energy_param := ptypes.SimpleParameter(name='Energy', value=0, type='float', suffix='eV', siPrefix=True, visible=False),
                  ],
                 'The values below are derived from the acquisition. You can override them here if desired.')
+
+            override_param.sigValueChanged.connect(lambda parameter, value: energy_param.setOpts(visible=value))
+
             self.dialog.open()
             self.dialog.accepted.connect(self._accepted)
 
