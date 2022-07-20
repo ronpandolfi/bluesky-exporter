@@ -75,7 +75,7 @@ class Exporter(QWidget):
         self.metadata_widget = MetadataWidget()
         self.catalog_progress_bar = QProgressBar()
         self.export_progress_bar = QProgressBar()
-        self.catalog_progress_bar.setFormat('Processing catalog %v of %m...')
+        self.catalog_progress_bar.setFormat('Completed catalog %v of %m...')
         self.catalog_progress_bar.hide()
         self.export_progress_bar.hide()
 
@@ -94,18 +94,23 @@ class Exporter(QWidget):
                                                    yield_slot=self.show_progress,
                                                    finished_slot=self.export_finished)
         self.export_queue = deque()
+        self.completed_counter = 0
 
     def start_export(self, catalog):
         # self.browser_widget.open_button.setEnabled(False)
         self.export_queue.append(catalog)
         if not self.export_thread.running:
             self.export_thread.start()
+            self.export_progress_bar.setValue(0)
+            self.export_progress_bar.setMaximum(0)
+            self.catalog_progress_bar.setValue(0)
+            self.catalog_progress_bar.setMaximum(0)
+        else:
+            mx = len(self.export_queue) + self.completed_counter + 1
+            self.catalog_progress_bar.setMaximum(mx)
+            self.catalog_progress_bar.show()
         # self.catalog_progress_bar.show()
         self.export_progress_bar.show()
-        self.export_progress_bar.setValue(0)
-        self.export_progress_bar.setMaximum(0)
-        self.catalog_progress_bar.setValue(0)
-        self.catalog_progress_bar.setMaximum(0)
         self.export_settings_widget.setDisabled(True)
 
     def export_finished(self):
@@ -134,20 +139,19 @@ class Exporter(QWidget):
             invoke_in_main_thread(QMessageBox.information, self, 'Cannot export', 'Select an export directory.')
             return
 
-        queue_length = len(self.export_queue)
-        completed_counter = 0
+        self.completed_counter = 0
 
         while self.export_queue:
-            queue_length = max(queue_length, len(self.export_queue) + completed_counter)
             catalog = self.export_queue.pop()
 
             for y in converter.convert_run(catalog):
                 if isinstance(y, tuple):
-                    yield *y, completed_counter, queue_length
+                    queue_length = len(self.export_queue) + self.completed_counter + 1
+                    yield *y, self.completed_counter, queue_length
                 else:
                     print(y)
 
-            completed_counter += 1
+            self.completed_counter += 1
 
         # resource_counter = itertools.count()
         #
