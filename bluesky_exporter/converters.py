@@ -100,6 +100,29 @@ class FitsConverter(Converter):
 
 class CXIConverter(Converter):
     name = 'Cosmic CXI'
+    
+    def __init__(self, *args, **kwargs):
+        super(CXIConverter, self).__init__(*args, **kwargs)
+
+        self.dialog = None
+        self.ready = False
+
+        def run_dialog():
+            self.dialog = ParameterDialog(
+                [ptypes.SimpleParameter(name='Override Energy', value=False, type='bool'),
+                 ptypes.SimpleParameter(name='Energy', value=0, type='float', suffix='eV', siPrefix=True),
+                 ],
+                'The values below are derived from the acquisition. You can override them here if desired.')
+            self.dialog.open()
+            self.dialog.accepted.connect(self._accepted)
+
+        invoke_as_event(run_dialog)
+
+    def _rejected(self):
+        raise InterruptedError('Cancelled export from dialog.')
+
+    def _accepted(self):
+        self.ready = True
 
     def convert_run(self, run: BlueskyRun):
         primary_stream = run.primary.to_dask()
@@ -130,13 +153,8 @@ class CXIConverter(Converter):
 
         energy = np.mean(primary_stream['mono_energy'].compute())
 
-        # NOTE: This is an example of how to display a dialog to the user asking to verify values
-        dialog = ParameterDialog([ptypes.SimpleParameter(name='Energy', value=energy, type='float', suffix='eV', siPrefix=True)],
-                                 'The values below are derived from the acquisition. You can override them here if desired.')
-        if dialog.exec_():
-            energy = dialog.get_parameters()['Energy']
-        else:
-            raise InterruptedError('Cancelled export from dialog.')
+        if self.dialog.get_parameters()['Override Energy']:
+            energy = self.dialog.get_parameters()['Energy']
 
         energy = energy * 1.60218e-19  # to J
         wavelength = 1.9864459e-25 / energy
@@ -253,6 +271,8 @@ class CXIConverter(Converter):
                     # TODO: rotate?
                     # write data
                 det1[i] = np.asarray(frame)
+
+                yield i, len(images)
 
         # yield out all artifact paths (not actually used yet, WIP)
         yield path
