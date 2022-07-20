@@ -1,3 +1,5 @@
+import warnings
+
 from bluesky_live import conversion
 
 
@@ -41,6 +43,9 @@ def _transpose(in_data, keys, data_keys, field):
             if out[k][0].shape[0] != out[k][1].shape[0]:
                 out[k][0] = out[k][1]
                 out[k] = dask.array.stack(out[k])
+                warnings.warn('ATTENTION! The selected run had malformed data as a result of an acquisition bug. In '
+                              'order to accommodate export, the first data point in the sequence will be made invalid. '
+                              'Please consider this in further analysis.')
             else:
                 raise ValueError('Error sustained.') from ex
             
