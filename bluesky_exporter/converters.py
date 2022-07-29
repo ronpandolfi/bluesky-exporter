@@ -116,6 +116,7 @@ class CXIConverter(Converter):
             self.dialog = ParameterDialog(
                 [bin_param := ptypes.SimpleParameter(name='Bin Multiple Exposures', value=True, type='bool'),
                  dark_param := ptypes.SimpleParameter(name='UID of Darks', value='', type='str'),
+                 pinhole_param := ptypes.SimpleParameter(name='Use Pinhole Positions', value=False, type='bool'),
                  override_param := ptypes.SimpleParameter(name='Override Energy', value=False, type='bool'),
                  energy_param := ptypes.SimpleParameter(name='Energy', value=0, type='float', suffix='eV', siPrefix=True, visible=False),
                  ],
@@ -136,6 +137,7 @@ class CXIConverter(Converter):
         self.override_energy = parameter['Override Energy']
         self.bin_frames = parameter['Bin Multiple Exposures']
         self.dark_uid = parameter['UID of Darks']
+        self.pinhole = parameter['Use Pinhole Positions']
         self.energy = parameter['Energy']
         self.ready = True
 
@@ -190,8 +192,14 @@ class CXIConverter(Converter):
         energy = energy * 1.60218e-19  # to J
         wavelength = 1.9864459e-25 / energy
 
-        x_locs = primary_stream['sample_translate'].compute() * 1e-6 
-        y_locs = primary_stream['sample_lift'].compute() * 1e-6  
+        if not self.pinhole:
+            x_locs = primary_stream['sample_translate'].compute() * 1e-6 
+            y_locs = primary_stream['sample_lift'].compute() * 1e-6  
+        else:
+            print('Exporting pinhole positions, NOT sample positions')
+            x_locs = -primary_stream['pinhole_x'].compute() * 1e-6
+            y_locs = -primary_stream['pinhole_y'].compute() * 1e-6
+            
         # TODO: sample z motor?
 
         # Now package the translations into a format digestible by CXI
