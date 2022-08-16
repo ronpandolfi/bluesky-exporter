@@ -6,7 +6,8 @@ from pathlib import Path
 import re
 import unicodedata
 
-from PyQt5.QtWidgets import QMessageBox, QProgressBar
+from PyQt5.QtCore import QSize
+from PyQt5.QtWidgets import QMessageBox, QProgressBar, QSplitter
 from qtpy.QtWidgets import QFormLayout, QLineEdit, QPushButton, QVBoxLayout, QToolButton, QFileDialog, QCheckBox, \
     QComboBox
 from qtpy.QtWidgets import QApplication, QSizePolicy
@@ -19,7 +20,7 @@ from xicam.core.threads import QThreadFutureIterator, invoke_in_main_thread
 from xicam.gui.bluesky.databroker_catalog_plugin import SearchingCatalogController
 from xicam.gui.widgets.metadataview import MetadataWidget
 
-from .converters import Converter
+from .converters import Converter, dialog_relay
 
 __all__ = ['main']
 
@@ -63,12 +64,17 @@ class ExportSettings(QGroupBox):
             self.export_directory_path.setText(path)
 
 
-class Exporter(QWidget):
+class Exporter(QSplitter):
     def __init__(self, broker, *args, **kwargs):
         super(Exporter, self).__init__()
 
-        self.setLayout(hlayout := QHBoxLayout())
-        hlayout.addLayout(vlayout := QVBoxLayout())
+        self.setOrientation(Qt.Horizontal)
+        self.setStretchFactor(0, 3)
+        self.setStretchFactor(1, 1)
+
+        left_widget = QWidget()
+        left_widget.setLayout(vlayout := QVBoxLayout())
+        self.addWidget(left_widget)
 
         self.export_settings_widget = ExportSettings()
         self.browser_widget = SearchingCatalogController(broker)
@@ -83,7 +89,7 @@ class Exporter(QWidget):
         vlayout.addWidget(self.browser_widget)
         vlayout.addWidget(self.catalog_progress_bar)
         vlayout.addWidget(self.export_progress_bar)
-        hlayout.addWidget(self.metadata_widget)
+        self.addWidget(self.metadata_widget)
 
         self.browser_widget.sigOpen.connect(self.start_export)
         self.browser_widget.sigPreview.connect(self.metadata_widget.show_catalog)
@@ -171,6 +177,18 @@ class ExporterWindow(QMainWindow):
         self.exporter = Exporter(broker)
         self.setCentralWidget(self.exporter)
         self.setWindowTitle('Bluesky Exporter')
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+
+        dialog_relay.sigShowDialog.connect(self.show_dialog)
+
+    def sizeHint(self):
+        return QSize(1300, 800)
+
+    def show_dialog(self, dialog_callable, lock):
+        dialog = dialog_callable()
+        dialog.exec_()
+        lock.return_value(dialog)
+        lock.release()
 
 
 def main():

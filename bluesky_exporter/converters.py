@@ -6,9 +6,12 @@ import tempfile
 import unicodedata
 import warnings
 from datetime import datetime
+from functools import partial
 from pathlib import Path
+from threading import Lock
 import time
 
+from qtpy.QtCore import Signal, QObject
 import h5py
 import numpy as np
 from astropy.io import fits
@@ -22,11 +25,46 @@ from databroker import Broker
 from xicam.SAXS.operations.correction import correct
 from xicam.core.threads import invoke_in_main_thread, invoke_as_event
 
-from bluesky_exporter.dialogs import ParameterDialog
+from bluesky_exporter.dialogs import ParameterDialog, ROIDialog
 
 db = Broker.named('local').v2
 
 tmp_dir = tempfile.tempdir
+
+
+class DialogRelay(QObject):
+    sigShowDialog = Signal(object, object)
+
+
+dialog_relay = DialogRelay()
+
+
+class StashLock(object):
+    def __init__(self, *args, **kwargs):
+        super(StashLock, self).__init__(*args, **kwargs)
+        self.value = None
+        self.lock = Lock()
+
+        self.acquire = self._defer_lock('acquire')
+        self.release = self._defer_lock('release')
+        self.__enter__ = self._defer_lock('__enter__')
+        self.__exit__ = self._defer_lock('__exit__')
+        self.locked = self._defer_lock('locked')
+
+    def _defer_lock(self, attr):
+        return getattr(self.lock, attr)
+
+    def return_value(self, value):
+        self.value = value
+
+
+def foreground_blocking_dialog(dialog_callable):
+    lock = StashLock()
+    lock.acquire()
+    # lock will be released in main thread
+    dialog_relay.sigShowDialog.emit(dialog_callable, lock)
+    lock.acquire()
+    return lock.value
 
 
 class Converter:
@@ -292,34 +330,8 @@ class CXIConverter(Converter):
 class NxsasConverter(Converter):
     name = 'Nexus NXsas (Cosmic-Scattering)'
 
-    def __init__(self, *args, **kwargs):
-        super(NxsasConverter, self).__init__(*args, **kwargs)
-
-        self.dialog = None
-        self.ready = False
-
-        def run_dialog():
-            self.dialog = ParameterDialog(
-                [ptypes.SimpleParameter(name='X Min', value=0, type='int'),
-                 ptypes.SimpleParameter(name='X Max', value=-1, type='int'),
-                 ptypes.SimpleParameter(name='Y Min', value=0, type='int'),
-                 ptypes.SimpleParameter(name='Y Max', value=-1, type='int'),
-                 ],
-                "Enter the export ROI ranges (optional). A max of -1 means 'end'.")
-            self.dialog.open()
-            self.dialog.accepted.connect(self._accepted)
-
-        invoke_as_event(run_dialog)
-
     def _rejected(self):
         raise InterruptedError('Cancelled export from dialog.')
-
-    def _accepted(self):
-        self.x_min = self.dialog.get_parameters()['X Min']
-        self.y_min = self.dialog.get_parameters()['Y Min']
-        self.x_max = self.dialog.get_parameters()['X Max']
-        self.y_max = self.dialog.get_parameters()['Y Max']
-        self.ready = True
 
     def convert_run(self, run: BlueskyRun):
         from xicam.SAXS.operations.correction import correct
@@ -353,11 +365,18 @@ class NxsasConverter(Converter):
                         if dims_to_squeeze == 0:
                             break
 
-            x_max = raw.shape[-1] if self.x_max == -1 else self.x_max
-            y_max = raw.shape[-2] if self.y_max == -1 else self.y_max
+            # Get export roi
+            message = 'Select export region...'
+            dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
 
-            dark = dark[self.y_min:y_max+1, self.x_min:x_max+1]
-            flats = flats[self.y_min:y_max+1, self.x_min:x_max+1]
+            self.x_min = int(dialog.parameter.child('ROI', message).roi.pos()[0])
+            self.y_min = int(dialog.parameter.child('ROI', message).roi.pos()[1])
+            self.x_max = int(dialog.parameter.child('ROI', message).roi.size()[0] + self.x_min)
+            self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
+
+
+            dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
+            flats = flats[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
 
             start_time = run.metadata['start']['time']
             end_time = None
@@ -410,10 +429,10 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_period'])
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_num_exposures'])
 
-            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], y_max-self.y_min, x_max-self.x_min))
+            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], self.y_max-self.y_min, self.x_max-self.x_min))
 
             for i, raw_frame in enumerate(raw):
-                raw_frame = np.asarray(raw_frame[self.y_min:y_max, self.x_min:x_max])
+                raw_frame = np.asarray(raw_frame[self.y_min:self.y_max, self.x_min:self.x_max])
                 corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
 
                 det1[i] = corrected_image
