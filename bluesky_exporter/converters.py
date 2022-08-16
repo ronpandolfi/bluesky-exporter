@@ -330,9 +330,6 @@ class CXIConverter(Converter):
 class NxsasConverter(Converter):
     name = 'Nexus NXsas (Cosmic-Scattering)'
 
-    def _rejected(self):
-        raise InterruptedError('Cancelled export from dialog.')
-
     def convert_run(self, run: BlueskyRun):
         from xicam.SAXS.operations.correction import correct
 
@@ -368,6 +365,9 @@ class NxsasConverter(Converter):
             # Get export roi
             message = 'Select export region...'
             dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
+
+            if not dialog.accepted():
+                raise InterruptedError('Cancelled export from dialog.')
 
             self.x_min = int(dialog.parameter.child('ROI', message).roi.pos()[0])
             self.y_min = int(dialog.parameter.child('ROI', message).roi.pos()[1])
