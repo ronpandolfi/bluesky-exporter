@@ -1,7 +1,12 @@
 from typing import Iterable, List
+
+import numpy as np
+from PyQt5.QtWidgets import QLayout
 from pyqtgraph import parametertree as pt
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel
 from qtpy.QtCore import Qt, QSettings
+
+from bluesky_exporter.parameter_types import RectROIParameter
 
 
 class ParameterDialog(QDialog):
@@ -54,3 +59,23 @@ class ParameterDialog(QDialog):
     def accept(self):
         super(ParameterDialog, self).accept()
         # QSettings().setValue(self._qsettings_key, self.parameter.saveState())
+
+
+class ROIDialog(ParameterDialog):
+    def __init__(self, image, message='ROI'):
+        super(ROIDialog, self).__init__(children=[RectROIParameter(name='ROI', value=image, message=message)])
+        # self.layout().setSizeConstraint(QLayout.SetFixedSize)
+
+
+if __name__ == '__main__':
+    import numpy as np
+    from qtpy.QtWidgets import QApplication
+
+    qapp = QApplication([])
+
+    dialog = ROIDialog(np.fromfunction(lambda y, x: y, shape=(100, 200)))
+    dialog.exec_()
+
+    qapp.exec_()
+
+
