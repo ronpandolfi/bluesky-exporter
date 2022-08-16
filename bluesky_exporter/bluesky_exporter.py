@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import unicodedata
 
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, QSettings
 from PyQt5.QtWidgets import QMessageBox, QProgressBar, QSplitter
 from qtpy.QtWidgets import QFormLayout, QLineEdit, QPushButton, QVBoxLayout, QToolButton, QFileDialog, QCheckBox, \
     QComboBox
@@ -32,6 +32,8 @@ QTreeView::item:has-children {
 }
 """
 
+settings = QSettings('camera', 'bluesky-exporter')
+
 
 class ExportSettings(QGroupBox):
 
@@ -39,14 +41,17 @@ class ExportSettings(QGroupBox):
         super(ExportSettings, self).__init__('Export Settings', *args, **kwargs)
         self.setLayout(form_layout := QFormLayout())
 
-        self.export_directory_path = QLineEdit()
+        self.export_directory_path = QLineEdit(settings.value('export_dir_path'))
         self.export_directory_button = QToolButton()
         self.export_directory_button.setText('...')
+        self.export_directory_path.textChanged.connect(lambda text: settings.setValue('export_dir_path', text))
         # self.munge_filenames = QCheckBox('Use sample name as filename')
         # self.munge_filenames.setChecked(True)
         self.converter = QComboBox()
         for name, converter in Converter.converter_classes.items():
             self.converter.addItem(name, converter)
+        self.converter.setCurrentText(settings.value('converter_name'))
+        self.converter.currentTextChanged.connect(lambda text: settings.setValue('converter_name', text))
 
         export_directory_layout = QHBoxLayout()
         export_directory_layout.addWidget(self.export_directory_path)
