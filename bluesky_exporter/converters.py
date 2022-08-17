@@ -366,7 +366,7 @@ class NxsasConverter(Converter):
             message = 'Select export region...'
             dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
 
-            if not dialog.accepted():
+            if not dialog.result() == dialog.Accepted:
                 raise InterruptedError('Cancelled export from dialog.')
 
             self.x_min = int(dialog.parameter.child('ROI', message).roi.pos()[0])
