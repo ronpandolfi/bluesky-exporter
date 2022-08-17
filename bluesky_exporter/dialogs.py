@@ -1,6 +1,7 @@
 from typing import Iterable, List
 
 import numpy as np
+from PyQt5.QtCore import QSize
 from PyQt5.QtWidgets import QLayout
 from pyqtgraph import parametertree as pt
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel
@@ -64,6 +65,7 @@ class ParameterDialog(QDialog):
 class ROIDialog(ParameterDialog):
     def __init__(self, image, message='ROI'):
         super(ROIDialog, self).__init__(children=[RectROIParameter(name='ROI', value=image, message=message)])
+        self.parameter_tree.sizeHint = lambda *_: QSize(800, 800)
         # self.layout().setSizeConstraint(QLayout.SetFixedSize)
 
 
