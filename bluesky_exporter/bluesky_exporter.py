@@ -103,7 +103,8 @@ class Exporter(QSplitter):
 
         self.export_thread = QThreadFutureIterator(self.export,
                                                    yield_slot=self.show_progress,
-                                                   finished_slot=self.export_finished)
+                                                   finished_slot=self.export_finished,
+                                                   except_slot=self.export_finished)
         self.export_queue = deque()
         self.completed_counter = 0
 
