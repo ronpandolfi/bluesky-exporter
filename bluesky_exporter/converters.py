@@ -363,16 +363,18 @@ class NxsasConverter(Converter):
                             break
 
             # Get export roi
-            message = 'Select export region...'
-            dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
+            if not getattr(self, 'apply_to_all', False):
+                message = 'Select export region...'
+                dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
 
-            if not dialog.result() == dialog.Accepted:
-                raise InterruptedError('Cancelled export from dialog.')
+                if not dialog.result() == dialog.Accepted:
+                    raise InterruptedError('Cancelled export from dialog.')
 
-            self.x_min = int(dialog.parameter.child('ROI', message).roi.pos()[0])
-            self.y_min = int(dialog.parameter.child('ROI', message).roi.pos()[1])
-            self.x_max = int(dialog.parameter.child('ROI', message).roi.size()[0] + self.x_min)
-            self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
+                self.x_min = int(dialog.parameter.child('ROI', message).roi.pos()[0])
+                self.y_min = int(dialog.parameter.child('ROI', message).roi.pos()[1])
+                self.x_max = int(dialog.parameter.child('ROI', message).roi.size()[0] + self.x_min)
+                self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
+                self.apply_to_all = bool(dialog.parameter['Apply to all'])
 
 
             dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
