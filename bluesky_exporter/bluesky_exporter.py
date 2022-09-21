@@ -130,6 +130,7 @@ class Exporter(QSplitter):
         self.catalog_progress_bar.hide()
         self.export_progress_bar.hide()
         self.export_settings_widget.setEnabled(True)
+        self.export_queue.clear()
 
     def show_progress(self, value, max, catalog_value, catalog_max):
         self.export_progress_bar.setMaximum(max)

@@ -374,7 +374,8 @@ class NxsasConverter(Converter):
                 self.y_min = int(dialog.parameter.child('ROI', message).roi.pos()[1])
                 self.x_max = int(dialog.parameter.child('ROI', message).roi.size()[0] + self.x_min)
                 self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
-                self.apply_to_all = bool(dialog.parameter['Apply to all'])
+
+
 
 
             dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
