@@ -101,17 +101,18 @@ class Exporter(QSplitter):
 
         self.browser_widget.open_button.setText('Export')
 
-        self.export_thread = QThreadFutureIterator(self.export,
-                                                   yield_slot=self.show_progress,
-                                                   finished_slot=self.export_finished,
-                                                   except_slot=self.export_finished)
+        self.export_thread = None
         self.export_queue = deque()
         self.completed_counter = 0
 
     def start_export(self, catalog):
         # self.browser_widget.open_button.setEnabled(False)
         self.export_queue.append(catalog)
-        if not self.export_thread.running:
+        if not self.export_thread or not self.export_thread.running:
+            self.export_thread = QThreadFutureIterator(self.export,
+                                                       yield_slot=self.show_progress,
+                                                       finished_slot=self.export_finished,
+                                                       except_slot=self.export_finished)
             self.export_thread.start()
             self.export_progress_bar.setValue(0)
             self.export_progress_bar.setMaximum(0)
