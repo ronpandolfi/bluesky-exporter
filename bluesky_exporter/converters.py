@@ -344,12 +344,18 @@ class NxsasConverter(Converter):
         path = str(path.with_suffix(path.suffix+'.h5'))
 
         primary_stream = run.primary.to_dask()
-        labview_stream = run.labview.to_dask()
+        if 'labview' in run:
+            labview_stream = run.labview.to_dask()
+        else:
+            labview_stream = None
 
         with h5py.File(path, 'w') as f:
 
             raw = primary_stream['fastccd_image']
-            dark = np.average(np.squeeze(run.dark.to_dask()['fastccd_image']), axis=0)
+            if 'dark' in run:
+                dark = np.average(np.squeeze(run.dark.to_dask()['fastccd_image']), axis=0)
+            else:
+                dark = None
             flats = np.ones(raw.shape[-2:])
 
             # when ndim > 3, squeeze extra dims
@@ -365,7 +371,10 @@ class NxsasConverter(Converter):
             # Get export roi
             if not getattr(self, 'apply_to_all', False):
                 message = 'Select export region...'
-                dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(raw[0]), message))
+                sliced_raw = raw
+                while sliced_raw.ndim > 2:
+                    sliced_raw = sliced_raw[0]
+                dialog = foreground_blocking_dialog(partial(ROIDialog, np.asarray(sliced_raw), message))
 
                 if not dialog.result() == dialog.Accepted:
                     raise InterruptedError('Cancelled export from dialog.')
@@ -376,8 +385,8 @@ class NxsasConverter(Converter):
                 self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
                 self.apply_to_all = bool(dialog.parameter['Apply to all'])
 
-
-            dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
+            if dark is not None:
+                dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
             flats = flats[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
 
             start_time = run.metadata['start']['time']
@@ -399,9 +408,10 @@ class NxsasConverter(Converter):
                 # If there was an error and no recorded end time
                 start_time, = tuple(time.strftime('%Y-%m-%dT%H:%M:%S.%f') for time in times)
 
-            energy = np.mean(labview_stream['mono_energy'].compute())
-            energy = energy * 1.60218e-19  # to J
-            wavelength = 1.9864459e-25 / energy
+            if labview_stream:
+                energy = np.mean(labview_stream['mono_energy'].compute())
+                energy = energy * 1.60218e-19  # to J
+                wavelength = 1.9864459e-25 / energy
 
             # Populate the major metadata fields
             entry_1 = f.create_group('entry1')
@@ -431,19 +441,29 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_period'])
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_num_exposures'])
 
-            det1 = detector_1.create_dataset('data', shape=(raw.shape[0], self.y_max-self.y_min, self.x_max-self.x_min))
+            det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min))
 
-            for i, raw_frame in enumerate(raw):
+            for i in np.ndindex(raw.shape[:-2]):
+                # slice raw down to single frame
+                raw_frame = raw
+                for j in i:
+                    raw_frame = raw_frame[j]
+
                 raw_frame = np.asarray(raw_frame[self.y_min:self.y_max, self.x_min:self.x_max])
-                corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+
+                if dark is not None:
+                    corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+                else:
+                    corrected_image = raw_frame
 
                 det1[i] = corrected_image
-                yield i, len(raw)
+                yield i[0], len(raw)
 
             # Add LabVIEW data
-            labview_group = instrument_1.create_group('labview_data')
-            for field in labview_stream:
-                labview_group.create_dataset(field, data=labview_stream[field].compute())
+            if labview_stream:
+                labview_group = instrument_1.create_group('labview_data')
+                for field in labview_stream:
+                    labview_group.create_dataset(field, data=labview_stream[field].compute())
 
         yield path
 
