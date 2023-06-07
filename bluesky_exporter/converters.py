@@ -331,10 +331,6 @@ class NxsasConverter(Converter):
     def convert_run(self, run: BlueskyRun):
         from xicam.SAXS.operations.correction import correct
 
-        # statics for fastccd
-        distance = 0.284
-        x_pixel_size = y_pixel_size = 30e-6
-
         uid = run.metadata['start']['uid']
 
         # Create the data file
@@ -347,11 +343,22 @@ class NxsasConverter(Converter):
         else:
             labview_stream = None
 
+        if 'fastccd_image' in primary_stream:
+            field_prefix = 'fastccd'
+            description = 'LBNL FastCCD'
+            sample_detector_distance = 0.284
+            x_pixel_size = y_pixel_size = 30e-6
+        elif 'andor_image' in primary_stream:
+            field_prefix = 'andor'
+            description = 'Andor CCD'
+            sample_detector_distance = .75  # NOTE: This may be changed by swapping the flange
+            x_pixel_size = y_pixel_size = 13.5e-6
+
         with h5py.File(path, 'w') as f:
 
-            raw = primary_stream['fastccd_image']
+            raw = primary_stream[f'{field_prefix}_image']
             if 'dark' in run:
-                dark = np.average(np.squeeze(run.dark.to_dask()['fastccd_image']), axis=0)
+                dark = np.average(np.squeeze(run.dark.to_dask()[f'{field_prefix}_image']), axis=0)
             else:
                 dark = None
             flats = np.ones(raw.shape[-2:])
@@ -431,13 +438,13 @@ class NxsasConverter(Converter):
             instrument_1['name'] = np.string_('COSMIC-Scattering')
 
             detector_1 = instrument_1.create_group('detector_1')
-            detector_1.create_dataset('description', data='LBNL FastCCD')
-            detector_1.create_dataset('distance', data=distance)
+            detector_1.create_dataset('description', data=description)
+            detector_1.create_dataset('distance', data=sample_detector_distance)
             detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
             detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
-            detector_1.create_dataset('count_time', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_time'])
-            detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_acquire_period'])
-            detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration']['fastccd']['data']['fastccd_cam_num_exposures'])
+            detector_1.create_dataset('count_time', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_time'])
+            detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period'])
+            detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_num_exposures'])
 
             det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min))
 
