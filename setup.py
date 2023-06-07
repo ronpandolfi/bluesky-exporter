@@ -27,7 +27,7 @@ setup(
     ],
     description="A file exporter for Bluesky's Databroker.",
     entry_points={
-        'console_scripts': [
+        'gui_scripts': [
             'bluesky_exporter=bluesky_exporter:main',
         ],
     },
