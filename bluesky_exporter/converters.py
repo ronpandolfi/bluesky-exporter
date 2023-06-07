@@ -9,7 +9,6 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from threading import Lock
-import time
 
 from qtpy.QtCore import Signal, QObject
 import h5py
@@ -21,13 +20,11 @@ import tifffile
 from xicam.core.data.bluesky_utils import streams_from_run
 from pyqtgraph.parametertree import parameterTypes as ptypes
 
-from databroker import Broker
 from xicam.SAXS.operations.correction import correct
 from xicam.core.threads import invoke_in_main_thread, invoke_as_event
 
-from bluesky_exporter.dialogs import ParameterDialog, ROIDialog
-
-db = Broker.named('local').v2
+from .dialogs import ParameterDialog, ROIDialog
+# db = Broker.named('tsuru').v2
 
 tmp_dir = tempfile.tempdir
 
@@ -215,6 +212,7 @@ class CXIConverter(Converter):
         # Now package the translations into a format digestible by CXI
         translations = np.stack((x_locs, y_locs, np.zeros(x_locs.shape))).transpose()
 
+        from .bluesky_exporter import db
         mask_run = db['f2d9e']
         mask = np.squeeze(np.asarray(mask_run.primary.to_dask()['fastccd_image']) == 8191)
 

@@ -1,13 +1,8 @@
-import itertools
-import shutil
 import time
-from collections import Counter, deque
-from pathlib import Path
-import re
-import unicodedata
+from collections import deque
 
-from PyQt5.QtCore import QSize, QSettings
-from PyQt5.QtWidgets import QMessageBox, QProgressBar, QSplitter
+from qtpy.QtCore import QSize, QSettings
+from qtpy.QtWidgets import QMessageBox, QProgressBar, QSplitter
 from qtpy.QtWidgets import QFormLayout, QLineEdit, QPushButton, QVBoxLayout, QToolButton, QFileDialog, QCheckBox, \
     QComboBox
 from qtpy.QtWidgets import QApplication, QSizePolicy
@@ -33,6 +28,8 @@ QTreeView::item:has-children {
 """
 
 settings = QSettings('camera', 'bluesky-exporter')
+
+db = None
 
 
 class ExportSettings(QGroupBox):
@@ -200,6 +197,8 @@ class ExporterWindow(QMainWindow):
 
 
 def main():
+    global db
+
     import sys
     if len(sys.argv) > 1:
         broker_name = sys.argv[1]

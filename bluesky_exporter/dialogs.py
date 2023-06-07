@@ -1,14 +1,12 @@
-from typing import Iterable, List
+from typing import List
 
-import numpy as np
-from PyQt5.QtCore import QSize
-from PyQt5.QtWidgets import QLayout
+from qtpy.QtCore import QSize
 from pyqtgraph import parametertree as pt
 from pyqtgraph.parametertree.parameterTypes import SimpleParameter
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel
-from qtpy.QtCore import Qt, QSettings
+from qtpy.QtWidgets import QDialog, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel
+from qtpy.QtCore import Qt
 
-from bluesky_exporter.parameter_types import RectROIParameter
+from .parameter_types import RectROIParameter
 
 
 class ParameterDialog(QDialog):
