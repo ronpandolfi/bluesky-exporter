@@ -351,7 +351,7 @@ class NxsasConverter(Converter):
         elif 'andor_image' in primary_stream:
             field_prefix = 'andor'
             description = 'Andor CCD'
-            sample_detector_distance = .75  # NOTE: This may be changed by swapping the flange
+            sample_detector_distance = .93  # NOTE: This may be changed by swapping the flange
             x_pixel_size = y_pixel_size = 13.5e-6
 
         with h5py.File(path, 'w') as f:
