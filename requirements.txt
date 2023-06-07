@@ -1,2 +1,14 @@
-versioneer
 wheel
+bluesky_live
+pyside2
+qtpy
+databroker
+qtmodern
+xicam
+xicam.SAXS
+area-detector-handlers
+tzlocal == 2.1  # patch for bluesky-widgets timezone issue
+dask==2022.11.0  # Error from dask compute of databroker xarrays in 2023+; review pending tiled migration
+distributed==2022.11.0 # Pinned due to above
+pyqtgraph==0.11.0 # Pinned pending Xi-CAM updates
+numpy==1.23.4 # Pinned due to above
