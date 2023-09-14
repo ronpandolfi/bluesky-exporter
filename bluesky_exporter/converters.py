@@ -357,21 +357,16 @@ class NxsasConverter(Converter):
         with h5py.File(path, 'w') as f:
 
             raw = primary_stream[f'{field_prefix}_image']
-            if 'dark' in run:
-                dark = np.average(np.squeeze(run.dark.to_dask()[f'{field_prefix}_image']), axis=0)
-            else:
-                dark = None
-            flats = np.ones(raw.shape[-2:])
 
             # when ndim > 3, squeeze extra dims
-            dims_to_squeeze = len(raw.dims)-3
-            if dims_to_squeeze > 0:
-                for i in range(len(raw.dims)):
-                    if raw.shape[i] == 1:
-                        raw = np.squeeze(raw, axis=i)
-                        dims_to_squeeze -= 1
-                        if dims_to_squeeze == 0:
-                            break
+            # dims_to_squeeze = len(raw.dims)-3
+            # if dims_to_squeeze > 0:
+            #     for i in range(len(raw.dims)):
+            #         if raw.shape[i] == 1:
+            #             raw = np.squeeze(raw, axis=i)
+            #             dims_to_squeeze -= 1
+            #             if dims_to_squeeze == 0:
+            #                 break
 
             # Get export roi
             if not getattr(self, 'apply_to_all', False):
@@ -389,10 +384,6 @@ class NxsasConverter(Converter):
                 self.x_max = int(dialog.parameter.child('ROI', message).roi.size()[0] + self.x_min)
                 self.y_max = int(dialog.parameter.child('ROI', message).roi.size()[1] + self.y_min)
                 self.apply_to_all = bool(dialog.parameter['Apply to all'])
-
-            if dark is not None:
-                dark = dark[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
-            flats = flats[self.y_min:self.y_max+1, self.x_min:self.x_max+1]
 
             start_time = run.metadata['start']['time']
             end_time = None
@@ -446,23 +437,31 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period'])
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_num_exposures'])
 
-            det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min))
+            det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min+1, self.x_max-self.x_min+1))
 
-            for i in np.ndindex(raw.shape[:-2]):
-                # slice raw down to single frame
-                raw_frame = raw
-                for j in i:
-                    raw_frame = raw_frame[j]
+            dark = None
 
-                raw_frame = np.asarray(raw_frame[self.y_min:self.y_max, self.x_min:self.x_max])
+            for i in range(raw.shape[0]):
+                if 'dark' in run:
+                    try:
+                        dark = np.average(run.dark.to_dask()[f'{field_prefix}_image'][i], axis=0)[self.y_min:self.y_max + 1, self.x_min:self.x_max + 1]
+                    except Exception as ex:
+                        pass
 
-                if dark is not None:
-                    corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
-                else:
-                    corrected_image = raw_frame
+                flats = np.ones(raw.shape[-2:])[self.y_min:self.y_max + 1, self.x_min:self.x_max + 1]
 
-                det1[i] = corrected_image
-                yield i[0], len(raw)
+                for j in range(raw.shape[1]):
+                    # slice raw down to single frame
+                    raw_frame = np.asarray(raw[i, j, self.y_min:self.y_max+1, self.x_min:self.x_max+1])
+
+                    # TODO: correct in batches, then merge
+                    if dark is not None:
+                        corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+                    else:
+                        corrected_image = raw_frame
+
+                    det1[i][j] = corrected_image
+                    yield i, raw.shape[0]
 
             # Add LabVIEW data
             if labview_stream:
