@@ -353,6 +353,11 @@ class NxsasConverter(Converter):
             description = 'Andor CCD'
             sample_detector_distance = .93  # NOTE: This may be changed by swapping the flange
             x_pixel_size = y_pixel_size = 13.5e-6
+        elif 'PI_MTE3_image' in primary_stream:
+            field_prefix = 'PI_MTE3'
+            description = 'Princeton Instruments MTE3'
+            sample_detector_distance = .208
+            x_pixel_size = y_pixel_size = 15e-6
 
         with h5py.File(path, 'w') as f:
 
