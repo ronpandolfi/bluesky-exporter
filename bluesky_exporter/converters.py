@@ -442,22 +442,22 @@ class NxsasConverter(Converter):
             detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period'])
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_num_exposures'])
 
-            det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min+1, self.x_max-self.x_min+1))
+            det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min))
 
             dark = None
 
             for i in range(raw.shape[0]):
                 if 'dark' in run:
                     try:
-                        dark = np.average(run.dark.to_dask()[f'{field_prefix}_image'][i], axis=0)[self.y_min:self.y_max + 1, self.x_min:self.x_max + 1]
+                        dark = np.average(run.dark.to_dask()[f'{field_prefix}_image'][i], axis=0)[self.y_min:self.y_max, self.x_min:self.x_max]
                     except Exception as ex:
                         pass
 
-                flats = np.ones(raw.shape[-2:])[self.y_min:self.y_max + 1, self.x_min:self.x_max + 1]
+                flats = np.ones(raw.shape[-2:])[self.y_min:self.y_max, self.x_min:self.x_max]
 
                 for j in range(raw.shape[1]):
                     # slice raw down to single frame
-                    raw_frame = np.asarray(raw[i, j, self.y_min:self.y_max+1, self.x_min:self.x_max+1])
+                    raw_frame = np.asarray(raw[i, j, self.y_min:self.y_max, self.x_min:self.x_max])
 
                     # TODO: correct in batches, then merge
                     if dark is not None:
@@ -465,7 +465,7 @@ class NxsasConverter(Converter):
                     else:
                         corrected_image = raw_frame
 
-                    det1[i][j] = corrected_image
+                    det1[i, j] = corrected_image
                     yield i, raw.shape[0]
 
             # Add LabVIEW data
