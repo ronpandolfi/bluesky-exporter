@@ -461,7 +461,10 @@ class NxsasConverter(Converter):
 
                     # TODO: correct in batches, then merge
                     if dark is not None:
-                        corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+                        if 'fastccd_image' in primary_stream:
+                            corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
+                        else:
+                            corrected_image = raw_frame - dark
                     else:
                         corrected_image = raw_frame
 
