@@ -449,7 +449,8 @@ class NxsasConverter(Converter):
             for i in range(raw.shape[0]):
                 if 'dark' in run:
                     try:
-                        dark = np.average(run.dark.to_dask()[f'{field_prefix}_image'][i], axis=0)[self.y_min:self.y_max, self.x_min:self.x_max]
+                        dark_xarray = run.dark.to_dask()
+                        dark = np.average(dark_xarray[f'{field_prefix}_image'][i], axis=0, dtype=dark_xarray.dtype)[self.y_min:self.y_max, self.x_min:self.x_max]
                     except Exception as ex:
                         pass
 
