@@ -469,7 +469,7 @@ class NxsasConverter(Converter):
                         corrected_image = raw_frame
 
                     det1[i, j] = corrected_image
-                    yield i, raw.shape[0]
+                    yield i*raw.shape[1]+j, raw.shape[0]*raw.shape[1]
 
             # Add LabVIEW data
             if labview_stream:
