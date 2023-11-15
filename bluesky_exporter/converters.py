@@ -348,16 +348,23 @@ class NxsasConverter(Converter):
             description = 'LBNL FastCCD'
             sample_detector_distance = 0.284
             x_pixel_size = y_pixel_size = 30e-6
+            readout_time = 0
+            period = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period']
         elif 'andor_image' in primary_stream:
             field_prefix = 'andor'
             description = 'Andor CCD'
             sample_detector_distance = .93  # NOTE: This may be changed by swapping the flange
             x_pixel_size = y_pixel_size = 13.5e-6
+            readout_time = 0
+            period = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period']
         elif 'PI_MTE3_image' in primary_stream:
             field_prefix = 'PI_MTE3'
             description = 'Princeton Instruments MTE3'
             sample_detector_distance = .208
             x_pixel_size = y_pixel_size = 15e-6
+            readout_time = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'].get(f'{field_prefix}_readout_time', 0)
+            period = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_time'] + \
+                     readout_time if readout_time else 0  # don't put anything if readout_time isn't saved
 
         with h5py.File(path, 'w') as f:
 
@@ -433,14 +440,28 @@ class NxsasConverter(Converter):
             instrument_1 = entry_1.create_group('instrument_1')
             instrument_1['name'] = np.string_('COSMIC-Scattering')
 
+            source_1 = instrument_1.create_group('source_1')
+            source_1['name'] = np.string_('ALS')
+            energy_field = source_1.create_dataset('energy', data=energy)  # in J
+            energy_field.attrs['units'] = 'J'
+            wavelength_field = source_1.create_dataset('wavelength', data=wavelength)  # in m
+            wavelength_field.attrs['units'] = 'm'
+
             detector_1 = instrument_1.create_group('detector_1')
             detector_1.create_dataset('description', data=description)
-            detector_1.create_dataset('distance', data=sample_detector_distance)
-            detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
-            detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
-            detector_1.create_dataset('count_time', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_time'])
-            detector_1.create_dataset('period', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_period'])
+            distance_field = detector_1.create_dataset('distance', data=sample_detector_distance)
+            distance_field.attrs['units'] = 'm'
+            x_pixel_size_field = detector_1.create_dataset('x_pixel_size', data=x_pixel_size)
+            x_pixel_size_field.attrs['units'] = 'm'
+            y_pixel_size_field = detector_1.create_dataset('y_pixel_size', data=y_pixel_size)
+            y_pixel_size_field.attrs['units'] = 'm'
+            count_time_field = detector_1.create_dataset('count_time', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_time'])
+            count_time_field.attrs['units'] = 'ms' if field_prefix == 'PI_MTE3' else 's'
+            period_field = detector_1.create_dataset('period', data=period)
+            period_field.attrs['units'] = 's'
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_num_exposures'])
+            readout_time_field = detector_1.create_dataset('detector_readout_time', data=readout_time)
+            readout_time_field.attrs['units'] = 's'
 
             det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min), dtype=raw.dtype)
 
@@ -450,7 +471,7 @@ class NxsasConverter(Converter):
                 if 'dark' in run:
                     try:
                         dark_xarray = run.dark.to_dask()
-                        dark = np.average(dark_xarray[f'{field_prefix}_image'][i], axis=0, dtype=dark_xarray.dtype)[self.y_min:self.y_max, self.x_min:self.x_max]
+                        dark = np.average(dark_xarray[f'{field_prefix}_image'][i][:, self.y_min:self.y_max, self.x_min:self.x_max], axis=0).astype(dark_xarray[f'{field_prefix}_image'].dtype)
                     except Exception as ex:
                         pass
 
