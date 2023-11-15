@@ -416,10 +416,17 @@ class NxsasConverter(Converter):
                 # If there was an error and no recorded end time
                 start_time, = tuple(time.strftime('%Y-%m-%dT%H:%M:%S.%f') for time in times)
 
+            energy = wavelength = None
             if labview_stream:
                 energy = np.mean(labview_stream['mono_energy'].compute())
+            elif 'mono_energy' in primary_stream:
+                energy = primary_stream['mono_energy'].compute()
+
+            if energy is not None:
                 energy = energy * 1.60218e-19  # to J
                 wavelength = 1.9864459e-25 / energy
+            else:
+                energy = wavelength = 0
 
             # Populate the major metadata fields
             entry_1 = f.create_group('entry1')
@@ -494,10 +501,16 @@ class NxsasConverter(Converter):
                     yield i*raw.shape[1]+j, raw.shape[0]*raw.shape[1]
 
             # Add LabVIEW data
+            labview_group = instrument_1.create_group('labview_data')
             if labview_stream:
-                labview_group = instrument_1.create_group('labview_data')
                 for field in labview_stream:
                     labview_group.create_dataset(field, data=labview_stream[field].compute())
+
+            # If LabVIEW stream is not available, grab all non-camera fields from primary stream
+            else:
+                for field in primary_stream:
+                    if not field.startswith(field_prefix):
+                        labview_group.create_dataset(field, data=primary_stream[field].compute())
 
         yield path
 
