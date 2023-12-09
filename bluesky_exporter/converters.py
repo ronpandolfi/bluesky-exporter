@@ -493,7 +493,7 @@ class NxsasConverter(Converter):
                         if 'fastccd_image' in primary_stream:
                             corrected_image = correct(np.expand_dims(raw_frame, 0), flats, dark)[0]
                         else:
-                            corrected_image = raw_frame - dark
+                            corrected_image = np.subtract(raw_frame, dark, dtype=np.result_type(raw_frame, dark, np.byte))
                     else:
                         corrected_image = raw_frame
 
