@@ -2,7 +2,7 @@ import time
 from collections import deque
 
 from qtpy.QtCore import QSize, QSettings
-from qtpy.QtWidgets import QMessageBox, QProgressBar, QSplitter
+from qtpy.QtWidgets import QMessageBox, QProgressBar, QSplitter, QErrorMessage
 from qtpy.QtWidgets import QFormLayout, QLineEdit, QPushButton, QVBoxLayout, QToolButton, QFileDialog, QCheckBox, \
     QComboBox
 from qtpy.QtWidgets import QApplication, QSizePolicy
@@ -109,7 +109,7 @@ class Exporter(QSplitter):
             self.export_thread = QThreadFutureIterator(self.export,
                                                        yield_slot=self.show_progress,
                                                        finished_slot=self.export_finished,
-                                                       except_slot=self.export_finished)
+                                                       except_slot=self.export_error)
             self.export_thread.start()
             self.export_progress_bar.setValue(0)
             self.export_progress_bar.setMaximum(0)
@@ -129,6 +129,11 @@ class Exporter(QSplitter):
         self.export_progress_bar.hide()
         self.export_settings_widget.setEnabled(True)
         self.export_queue.clear()
+
+    def export_error(self, ex):
+        self.export_finished()
+        self._error = QErrorMessage()
+        self._error.showMessage(repr(ex), type(ex))
 
     def show_progress(self, value, max, catalog_value, catalog_max):
         self.export_progress_bar.setMaximum(max)
