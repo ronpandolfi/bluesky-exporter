@@ -65,7 +65,7 @@ class ROIDialog(ParameterDialog):
     def __init__(self, image, message='ROI'):
         super(ROIDialog, self).__init__(children=[RectROIParameter(name='ROI', value=image, message=message),
                                                   SimpleParameter(name='Apply to all', value=True, type='bool')])
-        self.parameter_tree.sizeHint = lambda *_: QSize(800, 800)
+        self.parameter_tree.sizeHint = lambda *_: QSize(880, 800)
         # self.layout().setSizeConstraint(QLayout.SetFixedSize)
 
 
