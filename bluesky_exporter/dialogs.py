@@ -1,9 +1,9 @@
 from typing import List
 
-from qtpy.QtCore import QSize
+from qtpy.QtCore import QSize, QRectF
 from pyqtgraph import parametertree as pt
 from pyqtgraph.parametertree.parameterTypes import SimpleParameter
-from qtpy.QtWidgets import QDialog, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel
+from qtpy.QtWidgets import QDialog, QVBoxLayout, QDialogButtonBox, QPushButton, QLabel, QMessageBox
 from qtpy.QtCore import Qt
 
 from .parameter_types import RectROIParameter
@@ -63,10 +63,26 @@ class ParameterDialog(QDialog):
 
 class ROIDialog(ParameterDialog):
     def __init__(self, image, message='ROI'):
+        self.image = image
         super(ROIDialog, self).__init__(children=[RectROIParameter(name='ROI', value=image, message=message),
                                                   SimpleParameter(name='Apply to all', value=True, type='bool')])
         self.parameter_tree.sizeHint = lambda *_: QSize(880, 800)
         # self.layout().setSizeConstraint(QLayout.SetFixedSize)
+
+    @property
+    def roi(self):
+        return self.parameter.children()[0].children()[0].roi
+
+    def accept(self):
+        if not QRectF(0,0, *self.image.shape).contains(QRectF(*self.roi.pos(), *self.roi.size())):
+            msg = QMessageBox()
+            msg.setText('The selected region extends beyond the bounds of the image. This may cause errors during export. Continue?')
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+            msg.setDefaultButton(QMessageBox.Cancel)
+            result = msg.exec_()
+            if result != QMessageBox.Yes:
+                return
+        super().accept()
 
 
 if __name__ == '__main__':
