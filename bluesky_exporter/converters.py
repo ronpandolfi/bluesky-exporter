@@ -23,7 +23,8 @@ from pyqtgraph.parametertree import parameterTypes as ptypes
 from xicam.SAXS.operations.correction import correct
 from xicam.core.threads import invoke_in_main_thread, invoke_as_event
 
-from .dialogs import ParameterDialog, ROIDialog
+from .dialogs import ParameterDialog, ROIDialog, overwrite_if_exists
+
 # db = Broker.named('tsuru').v2
 
 tmp_dir = tempfile.tempdir
@@ -106,6 +107,8 @@ class NoOpConverter(Converter):
             elif name == 'resource':
                 for src_path in run.get_file_list(doc):
                     dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(src_path).suffix)
+                    if not overwrite_if_exists(dest_path):
+                        raise InterruptedError('Could not save to existing path. Cancelled by user.')
                     shutil.copy2(src_path, dest_path)
         yield
 
@@ -118,6 +121,8 @@ class TiffConverter(Converter):
             array = getattr(data, field_name).squeeze()
             if len(array.dims) in [2, 3]:
                 dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{stream_name}_{field_name}")).with_suffix('.tif')
+                if not overwrite_if_exists(dest_path):
+                    raise InterruptedError('Could not save to existing path. Cancelled by user.')
                 tifffile.imwrite(dest_path, array)
                 yield
 
@@ -130,6 +135,8 @@ class FitsConverter(Converter):
             array = getattr(data, field_name).squeeze()
             if len(array.dims) in [2, 3]:
                 dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{stream_name}_{field_name}")).with_suffix('.fits')
+                if not overwrite_if_exists(dest_path):
+                    raise InterruptedError('Could not save to existing path. Cancelled by user.')
                 fits.PrimaryHDU(array).writeto(dest_path)
                 yield
 
@@ -245,6 +252,8 @@ class CXIConverter(Converter):
 
         # Create the data file
         path = str(Path(self.export_dir) / Path(f"{run.metadata['start']['scan_id']}_{uid}").with_suffix('.cxi'))
+        if not overwrite_if_exists(path):
+            raise InterruptedError('Could not save to existing path. Cancelled by user.')
 
         # Note from Abe: I changed this because not closing the files
         # was causing it to leak memory over time
@@ -336,6 +345,8 @@ class NxsasConverter(Converter):
         # Create the data file
         path = Path(self.export_dir) / Path(f"{run.metadata['start']['sample_name']}_{uid}")
         path = str(path.with_suffix(path.suffix+'.h5'))
+        if not overwrite_if_exists(path):
+            raise InterruptedError('Could not save to existing path. Cancelled by user.')
 
         primary_stream = run.primary.to_dask()
         if 'labview' in run:
@@ -521,6 +532,8 @@ class Intake(Converter):
     def convert_run(self, run: BlueskyRun):
         sample_name = self.get_sample_name(run)
         dest_path = (Path(self.export_dir) / Path(f"{sample_name}")).with_suffix('.yaml')
+        if not overwrite_if_exists(dest_path):
+            raise InterruptedError('Could not save to existing path. Cancelled by user.')
         run.export(dest_path)
         yield
 

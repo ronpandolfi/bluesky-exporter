@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from qtpy.QtCore import QSize, QRectF
@@ -83,6 +84,22 @@ class ROIDialog(ParameterDialog):
             if result != QMessageBox.Yes:
                 return
         super().accept()
+
+
+def overwrite_if_exists(filename):
+    if os.path.exists(filename):
+        return overwrite_dialog(filename)
+    else:
+        return True
+
+
+def overwrite_dialog(filename):
+    btn = QMessageBox.warning(None,
+                        "Confirm Save As",
+                        f"{os.path.basename(filename)} already exists.\n Do you want to replace it?",
+                        buttons=QMessageBox.Yes | QMessageBox.No,
+                        defaultButton=QMessageBox.No)
+    return btn == QMessageBox.Yes
 
 
 if __name__ == '__main__':
