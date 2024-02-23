@@ -133,7 +133,7 @@ class Exporter(QSplitter):
     def export_error(self, ex):
         self.export_finished()
         self._error = QErrorMessage()
-        self._error.showMessage(repr(ex), type(ex))
+        self._error.showMessage(f'{repr(ex)}, {type(ex)}')
 
     def show_progress(self, value, max, catalog_value, catalog_max):
         self.export_progress_bar.setMaximum(max)
