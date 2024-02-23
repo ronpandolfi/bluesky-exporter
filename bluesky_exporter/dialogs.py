@@ -86,6 +86,17 @@ class ROIDialog(ParameterDialog):
         super().accept()
 
 
+def confirm_writable(filename):
+    if not overwrite_if_exists(filename):
+        raise InterruptedError('Could not save to existing path. Cancelled by user.')
+    if not check_writable(os.path.dirname(filename)):
+        raise PermissionError('Could not write to directory.')
+
+
+def check_writable(filename):
+    return os.access('/path/to/folder', os.W_OK)
+
+
 def overwrite_if_exists(filename):
     if os.path.exists(filename):
         return overwrite_dialog(filename)
