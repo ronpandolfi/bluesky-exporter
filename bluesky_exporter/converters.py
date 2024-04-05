@@ -201,7 +201,7 @@ class CXIConverter(Converter):
             # If there was an error and no recorded end time
             start_time, = tuple(time.strftime('%Y-%m-%dT%H:%M:%S.%f') for time in times)
 
-        energy = np.mean(primary_stream['mono_energy'].compute())
+        energy = np.mean(primary_stream['beamline_energy'].compute())
 
         if self.override_energy:
             energy = self.energy
@@ -424,9 +424,9 @@ class NxsasConverter(Converter):
 
             energy = wavelength = None
             if labview_stream:
-                energy = np.mean(labview_stream['mono_energy'].compute())
-            elif 'mono_energy' in primary_stream:
-                energy = primary_stream['mono_energy'].compute()
+                energy = np.mean(labview_stream['beamline_energy'].compute())
+            elif 'beamline_energy' in primary_stream:
+                energy = primary_stream['beamline_energy'].compute()
 
             if energy is not None:
                 energy = energy * 1.60218e-19  # to J
