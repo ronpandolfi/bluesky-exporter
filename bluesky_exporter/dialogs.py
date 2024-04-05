@@ -94,7 +94,7 @@ def confirm_writable(filename):
 
 
 def check_writable(filename):
-    return os.access('/path/to/folder', os.W_OK)
+    return os.access(filename, os.W_OK)
 
 
 def overwrite_if_exists(filename):
