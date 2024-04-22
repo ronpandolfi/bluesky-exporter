@@ -15,7 +15,8 @@ from xicam.core.threads import QThreadFutureIterator, invoke_in_main_thread
 from xicam.gui.bluesky.databroker_catalog_plugin import SearchingCatalogController
 from xicam.gui.widgets.metadataview import MetadataWidget
 
-from .converters import Converter, dialog_relay
+from .converters import Converter
+from .dialogs import dialog_relay
 
 __all__ = ['main']
 
@@ -196,7 +197,8 @@ class ExporterWindow(QMainWindow):
 
     def show_dialog(self, dialog_callable, lock):
         dialog = dialog_callable()
-        dialog.exec_()
+        if hasattr(dialog, 'exec_'):
+            dialog.exec_()
         lock.return_value(dialog)
         lock.release()
 
@@ -208,7 +210,7 @@ def main():
     if len(sys.argv) > 1:
         broker_name = sys.argv[1]
     else:
-        broker_name = 'local'
+        broker_name = 'tsuru'
 
     db = Broker.named(broker_name).v2
 

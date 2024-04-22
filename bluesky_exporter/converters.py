@@ -8,9 +8,7 @@ import warnings
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from threading import Lock
 
-from qtpy.QtCore import Signal, QObject
 import h5py
 import numpy as np
 from astropy.io import fits
@@ -21,48 +19,13 @@ from xicam.core.data.bluesky_utils import streams_from_run
 from pyqtgraph.parametertree import parameterTypes as ptypes
 
 from xicam.SAXS.operations.correction import correct
-from xicam.core.threads import invoke_in_main_thread, invoke_as_event
+from xicam.core.threads import invoke_as_event
 
-from .dialogs import ParameterDialog, ROIDialog, overwrite_if_exists, confirm_writable
+from .dialogs import ParameterDialog, ROIDialog, confirm_writable, foreground_blocking_dialog
 
 # db = Broker.named('tsuru').v2
 
 tmp_dir = tempfile.tempdir
-
-
-class DialogRelay(QObject):
-    sigShowDialog = Signal(object, object)
-
-
-dialog_relay = DialogRelay()
-
-
-class StashLock(object):
-    def __init__(self, *args, **kwargs):
-        super(StashLock, self).__init__(*args, **kwargs)
-        self.value = None
-        self.lock = Lock()
-
-        self.acquire = self._defer_lock('acquire')
-        self.release = self._defer_lock('release')
-        self.__enter__ = self._defer_lock('__enter__')
-        self.__exit__ = self._defer_lock('__exit__')
-        self.locked = self._defer_lock('locked')
-
-    def _defer_lock(self, attr):
-        return getattr(self.lock, attr)
-
-    def return_value(self, value):
-        self.value = value
-
-
-def foreground_blocking_dialog(dialog_callable):
-    lock = StashLock()
-    lock.acquire()
-    # lock will be released in main thread
-    dialog_relay.sigShowDialog.emit(dialog_callable, lock)
-    lock.acquire()
-    return lock.value
 
 
 class Converter:
@@ -504,6 +467,7 @@ class NxsasConverter(Converter):
                         corrected_image = raw_frame
 
                     det1[i, j] = corrected_image
+                    f.flush()
                     yield i*raw.shape[1]+j, raw.shape[0]*raw.shape[1]
 
             # Add LabVIEW data

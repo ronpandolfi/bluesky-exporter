@@ -1,6 +1,9 @@
 import os
+from functools import partial
+from threading import Lock
 from typing import List
 
+from PySide2.QtCore import QObject, Signal
 from qtpy.QtCore import QSize, QRectF
 from pyqtgraph import parametertree as pt
 from pyqtgraph.parametertree.parameterTypes import SimpleParameter
@@ -105,12 +108,48 @@ def overwrite_if_exists(filename):
 
 
 def overwrite_dialog(filename):
-    btn = QMessageBox.warning(None,
+    btn = foreground_blocking_dialog(partial(QMessageBox.warning,None,
                         "Confirm Save As",
                         f"{os.path.basename(filename)} already exists.\n Do you want to replace it?",
                         buttons=QMessageBox.Yes | QMessageBox.No,
-                        defaultButton=QMessageBox.No)
+                        defaultButton=QMessageBox.No))
     return btn == QMessageBox.Yes
+
+
+class DialogRelay(QObject):
+    sigShowDialog = Signal(object, object)
+
+
+dialog_relay = DialogRelay()
+
+
+class StashLock(object):
+    def __init__(self, *args, **kwargs):
+        super(StashLock, self).__init__(*args, **kwargs)
+        self.value = None
+        self.lock = Lock()
+
+        self.acquire = self._defer_lock('acquire')
+        self.release = self._defer_lock('release')
+        self.__enter__ = self._defer_lock('__enter__')
+        self.__exit__ = self._defer_lock('__exit__')
+        self.locked = self._defer_lock('locked')
+
+    def _defer_lock(self, attr):
+        return getattr(self.lock, attr)
+
+    def return_value(self, value):
+        self.value = value
+
+
+def foreground_blocking_dialog(dialog_callable):
+    lock = StashLock()
+    lock.acquire()
+    # lock will be released in main thread
+    dialog_relay.sigShowDialog.emit(dialog_callable, lock)
+    lock.acquire()
+    return lock.value
+
 
 
 if __name__ == '__main__':
@@ -123,5 +162,4 @@ if __name__ == '__main__':
     dialog.exec_()
 
     qapp.exec_()
-
 
