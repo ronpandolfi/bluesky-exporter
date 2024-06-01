@@ -8,6 +8,7 @@ import warnings
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from json import dump as jdump
 
 import h5py
 import numpy as np
@@ -63,16 +64,31 @@ class NoOpConverter(Converter):
         sample_name = None
         resource_counter = itertools.count()
 
+        jsons = []
+
         for name, doc in run.canonical(fill='no'):
+            doc_dict = doc if not hasattr(doc, 'to_dict') else doc.to_dict()
             if name == 'start':
                 sample_name = slugify(doc['sample_name'])
 
             elif name == 'resource':
                 for src_path in run.get_file_list(doc):
-                    dest_path = (Path(self.export_dir) / Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(src_path).suffix)
-                    confirm_writable(dest_path)
-                    shutil.copy2(src_path, dest_path)
+                    # TODO: using get_file_list is probably overkill
+                    dest_path = (Path(f"{sample_name}_{next(resource_counter)}")).with_suffix(Path(src_path).suffix)
+                    confirm_writable(Path(self.export_dir) / dest_path)
+                    shutil.copy2(src_path, Path(self.export_dir) / dest_path)
+
+                    doc_dict['resource_path'] = str(dest_path)
+                    doc_dict['root'] = self.export_dir
+
+            jsons.append((name, doc_dict))
+
+        with open(Path(self.export_dir)/f'{sample_name}_documents.json', 'w') as f:
+            jdump(jsons, f)
+
         yield
+
+
 
 
 class TiffConverter(Converter):
