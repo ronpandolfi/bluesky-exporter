@@ -3,7 +3,7 @@ from functools import partial
 from threading import Lock
 from typing import List
 
-from PySide2.QtCore import QObject, Signal
+from qtpy.QtCore import QObject, Signal
 from qtpy.QtCore import QSize, QRectF
 from pyqtgraph import parametertree as pt
 from pyqtgraph.parametertree.parameterTypes import SimpleParameter
