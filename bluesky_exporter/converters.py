@@ -347,7 +347,7 @@ class NxsasConverter(Converter):
             description = 'Princeton Instruments MTE3'
             sample_detector_distance = .208
             x_pixel_size = y_pixel_size = 15e-6
-            readout_time = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'].get(f'{field_prefix}_readout_time', 0)
+            readout_time = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'].get(f'{field_prefix}_cam_readout_time', 0)
             period = run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_acquire_time'] + \
                      readout_time if readout_time else 0  # don't put anything if readout_time isn't saved
 
