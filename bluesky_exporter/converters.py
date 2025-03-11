@@ -452,8 +452,9 @@ class NxsasConverter(Converter):
             period_field = detector_1.create_dataset('period', data=period)
             period_field.attrs['units'] = 's'
             detector_1.create_dataset('exposures', data=run.primary.metadata['descriptors'][0]['configuration'][field_prefix]['data'][f'{field_prefix}_cam_num_exposures'])
-            readout_time_field = detector_1.create_dataset('detector_readout_time', data=readout_time)
-            readout_time_field.attrs['units'] = 's'
+            if readout_time:
+                readout_time_field = detector_1.create_dataset('detector_readout_time', data=readout_time)
+                readout_time_field.attrs['units'] = 's'
 
             det1 = detector_1.create_dataset('data', shape=(*raw.shape[:-2], self.y_max-self.y_min, self.x_max-self.x_min), dtype=raw.dtype)
 
